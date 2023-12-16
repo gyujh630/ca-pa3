@@ -127,13 +127,11 @@ void EX_stage(struct ID_EX *id_ex, struct EX_MEM *ex_mem)
 	unsigned int immediate = id_ex->immediate;
 	unsigned int r_save_reg = instr->r_type.rd; // R-format: rd
 	unsigned int i_save_reg = instr->i_type.rt; // I-format: rt
-	printf("%d", i_save_reg);
 
 	switch (instr->type)
 	{
 	case r_type:
 		ex_mem->write_reg = r_save_reg;
-		// ex_mem->write_value = reg2_value;
 		switch (instr->r_type.funct)
 		{
 		case 0x20: // add
@@ -171,10 +169,11 @@ void EX_stage(struct ID_EX *id_ex, struct EX_MEM *ex_mem)
 		break;
 	case i_type:
 		ex_mem->write_reg = i_save_reg;
-		ex_mem->write_value = reg2_value;
 		switch (instr->opcode)
 		{
 		case 0x08: // addi
+			if (immediate >= 0x00008000)
+				immediate += 0xFFFF0000;
 			ex_mem->alu_out = reg1_value + immediate;
 			break;
 		case 0x0C: // andi
@@ -184,11 +183,18 @@ void EX_stage(struct ID_EX *id_ex, struct EX_MEM *ex_mem)
 			ex_mem->alu_out = reg1_value | immediate;
 			break;
 		case 0x23: // lw
+			if (immediate >= 0x00008000)
+				immediate += 0xFFFF0000;
 			ex_mem->alu_out = reg1_value + immediate;
 			break;
 		case 0x2B: // sw
+			if (immediate >= 0x00008000)
+				immediate += 0xFFFF0000;
 			ex_mem->alu_out = reg1_value + immediate;
+			ex_mem->write_value = reg2_value;
 			break;
+		case 0x04: // beq
+		case 0x05: // bne
 		default:
 			printf("Unsupported opcode value in I-type instruction\n");
 			break;
@@ -210,9 +216,40 @@ void MEM_stage(struct EX_MEM *ex_mem, struct MEM_WB *mem_wb)
 
 	if (is_noop(MEM)) return;
 
-	mem_wb->mem_out = ex_mem->alu_out;
-	mem_wb->alu_out = ex_mem->alu_out;
-	mem_wb->write_reg = ex_mem->write_reg;
+	unsigned int t = ex_mem->alu_out;
+	unsigned int memory_address = ex_mem->alu_out;
+
+	switch (instr->type)
+	{
+	case i_type:
+		switch (instr->opcode)
+		{
+		case 0x08: //addi
+		case 0x0C: //andi
+		case 0x0D: //ori
+			mem_wb->mem_out = ex_mem->alu_out;
+			mem_wb->alu_out = ex_mem->alu_out;
+			mem_wb->write_reg = ex_mem->write_reg;
+			break;
+		case 0x23: // lw
+			mem_wb->mem_out = (memory[t] << 24) | (memory[t + 1] << 16) | (memory[t + 2] << 8) | memory[t + 3];
+			mem_wb->alu_out = ex_mem->alu_out;
+			mem_wb->write_reg = ex_mem->write_reg;
+			break;
+		case 0x2B: // sw
+			memory[memory_address] = (ex_mem->write_value >> 24) & 0xFF;
+			memory[memory_address + 1] = (ex_mem->write_value >> 16) & 0xFF;
+			memory[memory_address + 2] = (ex_mem->write_value >> 8) & 0xFF;
+			memory[memory_address + 3] = ex_mem->write_value & 0xFF;
+			break;
+		}
+		break;
+	default:
+		mem_wb->mem_out = ex_mem->alu_out;
+		mem_wb->alu_out = ex_mem->alu_out;
+		mem_wb->write_reg = ex_mem->write_reg;
+		break;
+	}
 }
 
 
@@ -222,6 +259,5 @@ void WB_stage(struct MEM_WB *mem_wb)
 
 	if (is_noop(WB)) return;
 
-	/* TODO: Fingers crossed */
 	registers[mem_wb->write_reg] = mem_wb->mem_out;
 }
