@@ -69,7 +69,7 @@ void IF_stage(struct IF_ID *if_id)
 	 */
 
 	/* TODO: Read one instruction in machine code from the memory */
-	unsigned int machine_code = 0xdeadbeef;
+	unsigned int machine_code = (memory[pc] << 24) | (memory[pc + 1] << 16) | (memory[pc + 2] << 8) | memory[pc + 3];
 
 	/***
 	 * Set @stages[IF].instruction.machine_code with the read machine code
@@ -81,6 +81,9 @@ void IF_stage(struct IF_ID *if_id)
 	stages[IF].__pc = pc;
 
 	/* TODO: Fill in IF-ID interstage register */
+	if_id->instruction = machine_code;
+	pc += 4;
+	if_id->next_pc = pc;
 
 	/***
 	 * The framework processes @stage[IF].instruction.machine_code under
@@ -102,8 +105,13 @@ void ID_stage(struct IF_ID *if_id, struct ID_EX *id_ex)
 	 */
 
 	/* TODO: Process register read. May use if_id */
+	unsigned int reg1_value = registers[instr->r_type.rs];
+	unsigned int reg2_value = registers[instr->r_type.rt];
 
 	/* TODO: Fill in ID-EX interstage register */
+	id_ex->next_pc = if_id->next_pc;
+	id_ex->reg1_value = reg1_value;
+	id_ex->reg2_value = reg2_value;
 }
 
 void EX_stage(struct ID_EX *id_ex, struct EX_MEM *ex_mem)
@@ -112,7 +120,57 @@ void EX_stage(struct ID_EX *id_ex, struct EX_MEM *ex_mem)
 
 	if (is_noop(EX)) return;
 
-	/* TODO: Good luck! */
+	unsigned int reg1_value = id_ex->reg1_value;
+	unsigned int reg2_value = id_ex->reg2_value;
+	unsigned int immediate = id_ex->immediate;
+
+	switch (instr->type)
+	{
+	case r_type:
+		switch (instr->r_type.funct)
+		{
+		case 0x20: // add
+			ex_mem->alu_out = reg1_value + reg2_value;
+			break;
+		case 0x22: // sub
+			ex_mem->alu_out = reg1_value - reg2_value;
+			break;
+		case 0x24: // and
+			ex_mem->alu_out = reg1_value & reg2_value;
+			break;
+		case 0x25: // or
+			ex_mem->alu_out = reg1_value | reg2_value;
+			break;
+		case 0x27: // nor
+			ex_mem->alu_out = ~(reg1_value | reg2_value);
+			break;
+		case 0x00: // sll
+			ex_mem->alu_out = reg2_value << instr->r_type.shamt;
+			break;
+		case 0x02: // srl
+			ex_mem->alu_out = reg2_value >> instr->r_type.shamt;
+			break;
+		case 0x03: // sra
+			// Perform arithmetic shift right (sign-extend)
+			ex_mem->alu_out = (int)reg2_value >> instr->r_type.shamt;
+			break;
+		case 0x2a: // slt
+			ex_mem->alu_out = (reg1_value < reg2_value) ? 1 : 0;
+			break;
+		default:
+			// Handle unsupported funct values
+			printf("Unsupported funct value in R-type instruction\n");
+			break;
+		}
+		break;
+	// 다른 케이스들
+	default:
+		printf("Unsupported instruction type\n");
+		break;
+	}
+
+	ex_mem->next_pc = id_ex->next_pc;
+	ex_mem->write_value = reg2_value;
 }
 
 
@@ -122,7 +180,9 @@ void MEM_stage(struct EX_MEM *ex_mem, struct MEM_WB *mem_wb)
 
 	if (is_noop(MEM)) return;
 
-	/* TODO: Happy coding */
+	mem_wb->mem_out = ex_mem->alu_out;
+	mem_wb->alu_out = ex_mem->alu_out;
+	mem_wb->write_reg = ex_mem->write_reg;
 }
 
 
@@ -132,5 +192,5 @@ void WB_stage(struct MEM_WB *mem_wb)
 
 	if (is_noop(WB)) return;
 
-	/* TODO: Fingers crossed */
+	registers[mem_wb->write_reg] = mem_wb->mem_out;
 }
