@@ -120,9 +120,12 @@ void EX_stage(struct ID_EX *id_ex, struct EX_MEM *ex_mem)
 
 	if (is_noop(EX)) return;
 
+	/* TODO: Good luck! */
+
 	unsigned int reg1_value = id_ex->reg1_value;
 	unsigned int reg2_value = id_ex->reg2_value;
 	unsigned int immediate = id_ex->immediate;
+	unsigned int save_reg = instr->r_type.rd; //r
 
 	switch (instr->type)
 	{
@@ -169,8 +172,11 @@ void EX_stage(struct ID_EX *id_ex, struct EX_MEM *ex_mem)
 		break;
 	}
 
+	// Store result
+
 	ex_mem->next_pc = id_ex->next_pc;
 	ex_mem->write_value = reg2_value;
+	ex_mem->write_reg = save_reg;
 }
 
 
@@ -192,5 +198,6 @@ void WB_stage(struct MEM_WB *mem_wb)
 
 	if (is_noop(WB)) return;
 
+	/* TODO: Fingers crossed */
 	registers[mem_wb->write_reg] = mem_wb->mem_out;
 }
