@@ -107,11 +107,13 @@ void ID_stage(struct IF_ID *if_id, struct ID_EX *id_ex)
 	/* TODO: Process register read. May use if_id */
 	unsigned int reg1_value = registers[instr->r_type.rs];
 	unsigned int reg2_value = registers[instr->r_type.rt];
+	unsigned int immediate = instr->i_type.imm;
 
 	/* TODO: Fill in ID-EX interstage register */
 	id_ex->next_pc = if_id->next_pc;
 	id_ex->reg1_value = reg1_value;
 	id_ex->reg2_value = reg2_value;
+	id_ex->immediate = immediate;
 }
 
 void EX_stage(struct ID_EX *id_ex, struct EX_MEM *ex_mem)
@@ -120,16 +122,18 @@ void EX_stage(struct ID_EX *id_ex, struct EX_MEM *ex_mem)
 
 	if (is_noop(EX)) return;
 
-	/* TODO: Good luck! */
-
 	unsigned int reg1_value = id_ex->reg1_value;
 	unsigned int reg2_value = id_ex->reg2_value;
 	unsigned int immediate = id_ex->immediate;
-	unsigned int save_reg = instr->r_type.rd; //r
+	unsigned int r_save_reg = instr->r_type.rd; // R-format: rd
+	unsigned int i_save_reg = instr->i_type.rt; // I-format: rt
+	printf("%d", i_save_reg);
 
 	switch (instr->type)
 	{
 	case r_type:
+		ex_mem->write_reg = r_save_reg;
+		// ex_mem->write_value = reg2_value;
 		switch (instr->r_type.funct)
 		{
 		case 0x20: // add
@@ -161,22 +165,42 @@ void EX_stage(struct ID_EX *id_ex, struct EX_MEM *ex_mem)
 			ex_mem->alu_out = (reg1_value < reg2_value) ? 1 : 0;
 			break;
 		default:
-			// Handle unsupported funct values
 			printf("Unsupported funct value in R-type instruction\n");
 			break;
 		}
 		break;
-	// 다른 케이스들
+	case i_type:
+		ex_mem->write_reg = i_save_reg;
+		ex_mem->write_value = reg2_value;
+		switch (instr->opcode)
+		{
+		case 0x08: // addi
+			ex_mem->alu_out = reg1_value + immediate;
+			break;
+		case 0x0C: // andi
+			ex_mem->alu_out = reg1_value & immediate;
+			break;
+		case 0x0D: // ori
+			ex_mem->alu_out = reg1_value | immediate;
+			break;
+		case 0x23: // lw
+			ex_mem->alu_out = reg1_value + immediate;
+			break;
+		case 0x2B: // sw
+			ex_mem->alu_out = reg1_value + immediate;
+			break;
+		default:
+			printf("Unsupported opcode value in I-type instruction\n");
+			break;
+		}
+		break;
 	default:
 		printf("Unsupported instruction type\n");
 		break;
 	}
 
 	// Store result
-
 	ex_mem->next_pc = id_ex->next_pc;
-	ex_mem->write_value = reg2_value;
-	ex_mem->write_reg = save_reg;
 }
 
 

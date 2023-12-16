@@ -560,7 +560,7 @@ int main(int argc, char * const argv[])
 {
 	char command[MAX_COMMAND] = {'\0'};
 	int opt;
-	char *input_file = "testcases/program-r";
+	char *input_file = "testcases/program-i";
 	unsigned int max_cycles = 0;
 
 	while ((opt = getopt(argc, argv, "c:vmr")) != -1) {
